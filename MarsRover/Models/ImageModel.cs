@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-
-namespace MarsRover.Models
+﻿namespace MarsRover.Models
 {
     public class ImageModel
     {

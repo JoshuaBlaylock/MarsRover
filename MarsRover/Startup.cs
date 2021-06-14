@@ -1,4 +1,5 @@
 using MarsRover.Components;
+using MarsRover.Helpers;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
@@ -16,16 +17,16 @@ namespace MarsRover
 
         public IConfiguration Configuration { get; }
 
-        // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddHttpClient();
             services.AddScoped<IImageComponent, ImageComponent>();
+            services.AddScoped<IFileHelper, FileHelper>();
+            services.AddScoped<IClientHelper, ClientHelper>();
 
             services.AddControllers();
         }
 
-        // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
             if (env.IsDevelopment())

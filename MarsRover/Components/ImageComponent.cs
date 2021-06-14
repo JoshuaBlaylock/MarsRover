@@ -1,4 +1,5 @@
-﻿using MarsRover.Models;
+﻿using MarsRover.Helpers;
+using MarsRover.Models;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
@@ -10,31 +11,30 @@ namespace MarsRover.Components
 {
     public class ImageComponent : IImageComponent
     {
-        HttpClient _client;
+        IClientHelper _client;
+        IFileHelper _file;
         const string ROVER_URL = "https://api.nasa.gov/mars-photos/api/v1/rovers/curiosity/photos?earth_date=";
         const string API_SUFFIX = "&api_key=qJ8ApUtWoBtT0QFnppleOsdyRwD0oqGzV50f1e73";
         const string STORAGE_LOCATION = @"C:\MarsRover\";
-        public ImageComponent(IHttpClientFactory factory)
+        public ImageComponent(IClientHelper client, IFileHelper file)
         {
-            _client = factory.CreateClient();
+            _client = client;
+            _file = file;
         }
 
         public List<string> GetMarsRoverImagesFromFile(string fileName)
         {
             var result = new List<string>();
-            var dates = System.IO.File.ReadAllLines($"{STORAGE_LOCATION}{fileName}").ToList();
+            var dates = _file.ReadLines($"{STORAGE_LOCATION}{fileName}");
             foreach (var date in dates)
             {
                 if (DateTime.TryParse(date, out var validDate))
                 {
                     var request = string.Format("{0}{1:yyyy-MM-dd}{2}", ROVER_URL, validDate, API_SUFFIX);
-                    using (var response = _client.GetAsync(request).Result)
-                    {
-                        response.EnsureSuccessStatusCode();
-                        var model = JsonConvert.DeserializeObject<RoverResponseModel>(response.Content.ReadAsStringAsync().Result);
-                        SaveImagesToDisk(validDate, model.Photos);
-                        result.AddRange(model.Photos.Select(p => p.Img_src).ToList());
-                    }
+                    var response = _client.GetStringResult(request);
+                    var model = JsonConvert.DeserializeObject<RoverResponseModel>(response);
+                    SaveImagesToDisk(validDate, model.Photos);
+                    result.AddRange(model.Photos.Select(p => p.Img_src).ToList());
                 }
             }
             return result;
@@ -43,29 +43,20 @@ namespace MarsRover.Components
         private void SaveImagesToDisk(DateTime date, List<ImageModel> images)
         {
             var path = Path.Combine(STORAGE_LOCATION, string.Format("{0:yyyyMMdd}", date));
-            if (!Directory.Exists(path))
-            {
-                Directory.CreateDirectory(path);
-            }
+            _file.FindOrCreateDirectory(path);
             foreach (var image in images)
             {
                 var imagePath = Path.Combine(path, $"{image.Id}.jpg");
-                if (File.Exists(imagePath))
+                if (_file.FileExists(imagePath))
                 {
                     continue;
                 }
 
-                using (var response = _client.GetAsync(image.Img_src).Result)
+                using (var stream = _client.GetStreamResult(image.Img_src))
                 {
-                    response.EnsureSuccessStatusCode();
-                    using (var stream = response.Content.ReadAsStreamAsync().Result)
+                    using (var fs = _file.CreateFile(imagePath))
                     {
-                        using (var fs = File.Create(imagePath))
-                        {
-                            var buffer = new byte[stream.Length];
-                            stream.Read(buffer, 0, buffer.Length);
-                            fs.Write(buffer, 0, buffer.Length);
-                        }
+                        _file.ReadStreamToFile(stream, fs);
                     }
                 }
             }
